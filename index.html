@@ -642,6 +642,7 @@ function abrirFormAtv(leadId){
   document.getElementById('fa-lead').innerHTML=leads.map(l=>`<option value="${l.id}" ${l.id===leadId?'selected':''}>${l.nome}</option>`).join('');
   document.getElementById('fa-data').value=new Date().toISOString().slice(0,10);
   document.getElementById('fa-desc').value='';
+  document.getElementById('fa-oqfazer').value='';
   document.getElementById('fa-concluida').checked=false;
   const cfg2=gcfg();
   const meuNome2=cfg2.responsavel||'';
@@ -650,7 +651,9 @@ function abrirFormAtv(leadId){
   if(users2.length){
     selQ.innerHTML='<option value="">— Selecionar —</option>'+users2.map(u=>`<option value="${u}" ${u===meuNome2?'selected':''}>${u}</option>`).join('');
   } else {
-    selQ.innerHTML  abrirOv('ov-form-atv');
+    selQ.innerHTML='<option value="">Salve seu nome em Configurações</option>';
+  }
+  abrirOv('ov-form-atv');
 }
 function salvarAtividade(){
   const leadId=document.getElementById('fa-lead').value;
