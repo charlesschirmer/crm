@@ -153,12 +153,11 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
 .conc-row label{font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:8px}
 .conc-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--vd);cursor:pointer;flex-shrink:0}
 /* próxima atividade dentro do card */
-.prox-box{margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)}
-.prox-label{font-size:11px;font-weight:700;color:var(--vc);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
-.prox-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
-.prox-chip{font-size:12px;font-weight:600;color:var(--vd);background:var(--vvl);
-  padding:3px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
-.prox-oque{font-size:13px;color:var(--txt);line-height:1.5;margin-top:4px}
+
+
+
+
+
 
 /* FORMS */
 .fg{margin-bottom:16px}
@@ -171,9 +170,8 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
 .ft{min-height:110px;resize:vertical}
 .frow{display:grid;grid-template-columns:2fr 1fr;gap:12px}
 /* separador de grupo */
-.form-sep{border:none;border-top:2px solid var(--brd);margin:20px 0 16px}
-.form-group-title{font-size:12px;font-weight:800;color:var(--vc);text-transform:uppercase;
-  letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+
+
 /* check concluída no form */
 .check-row{display:flex;align-items:center;gap:12px;padding:14px 16px;
   background:var(--bg);border:1.5px solid var(--brd);border-radius:12px;cursor:pointer}
@@ -328,9 +326,9 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
       <button class="dclose" onclick="fecharOv('ov-form-atv')"><i class="ti ti-x"></i></button>
     </div>
     <div class="dbody">
-      <!-- Campos principais -->
       <div class="fg"><label class="fl">Data *</label><input class="fi" type="date" id="fa-data"/></div>
       <div class="fg"><label class="fl">Lead *</label><select class="fs" id="fa-lead"></select></div>
+      <div class="fg"><label class="fl">Responsável *</label><select class="fs" id="fa-quem"></select></div>
       <div class="fg">
         <label class="fl">Tipo de contato</label>
         <select class="fs" id="fa-tipo">
@@ -341,22 +339,14 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
           <option value="Reunião">📅 Reunião</option>
         </select>
       </div>
-      <div class="fg"><label class="fl">O que foi feito *</label><textarea class="ft" id="fa-desc" placeholder="Descreva o que aconteceu..."></textarea></div>
-      <!-- Check concluída -->
+      <div class="fg"><label class="fl">O que fazer</label><textarea class="ft" id="fa-oqfazer" placeholder="Descreva o que precisa ser feito..." style="min-height:90px"></textarea></div>
+      <div class="fg"><label class="fl">O que foi feito</label><textarea class="ft" id="fa-desc" placeholder="Descreva o que aconteceu..." style="min-height:90px"></textarea></div>
       <div class="fg">
         <label class="check-row">
           <input type="checkbox" id="fa-concluida"/>
           <span>Atividade concluída</span>
         </label>
       </div>
-
-      <!-- Separador — Próxima Atividade -->
-      <hr class="form-sep"/>
-      <div class="form-group-title"><i class="ti ti-arrow-forward" style="font-size:16px"></i> Próxima Atividade</div>
-      <div class="fg"><label class="fl">Quem</label><select class="fs" id="fa-prox-quem"></select></div>
-      <div class="fg"><label class="fl">Quando</label><input class="fi" type="date" id="fa-prox-quando"/></div>
-      <div class="fg"><label class="fl">O que fazer</label><textarea class="ft" id="fa-prox-oque" placeholder="Descreva a próxima ação..." style="min-height:80px"></textarea></div>
-
       <button class="btn-p" onclick="salvarAtividade()"><i class="ti ti-device-floppy"></i> Salvar Atividade</button>
     </div>
   </div>
@@ -480,12 +470,12 @@ function toast(msg,dur=2500){const t=document.getElementById('toast');t.textCont
 function getPendentes(){
   const cfg=gcfg();
   const meuNome=(cfg.responsavel||'').trim().toLowerCase();
+  if(!meuNome) return [];
   return ga().filter(a=>{
-    const temProx = a.prox_quem && a.prox_quando && a.prox_oque;
-    const ehMeu   = meuNome && a.prox_quem && a.prox_quem.trim().toLowerCase().includes(meuNome);
-    const pendente = !a.prox_concluida;
-    return temProx && ehMeu && pendente;
-  }).sort((a,b)=>a.prox_quando.localeCompare(b.prox_quando));
+    const ehMeu   = a.quem && a.quem.trim().toLowerCase()===meuNome;
+    const pendente = !a.concluida;
+    return ehMeu && pendente;
+  }).sort((a,b)=>(a.data||'').localeCompare(b.data||''));
 }
 
 function atualizarBadgePendentes(){
@@ -607,7 +597,6 @@ function abrirDetalhe(id){
 /* ---- CARD ATIVIDADE HTML ---- */
 function cardAtvHtml(a, showLead=true){
   const lead=gl().find(l=>l.id===a.leadId);
-  const temProx=a.prox_quem&&a.prox_quando&&a.prox_oque;
   return`<div class="ac ${a.concluida?'concluida':''}">
     <div class="ah">
       <span class="at ${tcls(a.tipo)}">${a.tipo}</span>
@@ -615,20 +604,14 @@ function cardAtvHtml(a, showLead=true){
       ${a.concluida?'<span style="font-size:11px;font-weight:700;color:var(--vc);background:var(--vvl);padding:3px 8px;border-radius:6px;margin-left:4px">✓ Concluída</span>':''}
     </div>
     ${showLead&&lead?`<div class="a-lead" onclick="abrirDetalhe('${a.leadId}')">${lead.nome}</div>`:''}
-    <div class="a-desc">${a.descricao}</div>
-    ${temProx?`<div class="prox-box">
-      <div class="prox-label"><i class="ti ti-arrow-forward" style="font-size:13px"></i> Próxima Atividade</div>
-      <div class="prox-row">
-        <span class="prox-chip"><i class="ti ti-user" style="font-size:12px"></i>${a.prox_quem}</span>
-        <span class="prox-chip"><i class="ti ti-calendar" style="font-size:12px"></i>${fmtD(a.prox_quando)}</span>
-        ${a.prox_concluida?'<span style="font-size:11px;font-weight:700;color:var(--vc);background:var(--vvl);padding:3px 8px;border-radius:6px">✓ Feita</span>':''}
-      </div>
-      <div class="prox-oque">${a.prox_oque}</div>
-      ${!a.prox_concluida?`<button onclick="marcarProxConcluida('${a.id}')"
-        style="margin-top:8px;background:var(--vvl);color:var(--vd);border:none;border-radius:8px;
-               padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
-        <i class="ti ti-check" style="font-size:13px"></i> Marcar próxima como feita
-      </button>`:''}
+    ${a.quem?`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-user" style="font-size:14px;color:var(--vc)"></i>${a.quem}</div>`:''}
+    ${a.oqfazer?`<div style="margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--warn);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">O que fazer</div>
+      <div class="a-desc" style="color:var(--warn)">${a.oqfazer}</div>
+    </div>`:''}
+    ${a.descricao?`<div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">O que foi feito</div>
+      <div class="a-desc">${a.descricao}</div>
     </div>`:''}
     <div class="conc-row">
       <label>
@@ -651,15 +634,6 @@ function toggleConcluida(id, val){
   if(document.getElementById('ov-atv').classList.contains('open')) renderAllAtv();
 }
 
-function marcarProxConcluida(id){
-  const atv=ga(), idx=atv.findIndex(a=>a.id===id);
-  if(idx<0) return;
-  atv[idx].prox_concluida=true;
-  atv[idx].atualEm=new Date().toISOString();
-  sa(atv); autoSync(); resumo(); toast('✅ Próxima atividade marcada como feita!');
-  if(document.getElementById('ov-lead').classList.contains('open')) abrirDetalhe(curLead);
-  if(document.getElementById('ov-atv').classList.contains('open')) renderAllAtv();
-}
 
 /* ---- FORM ATIVIDADE ---- */
 function abrirFormAtv(leadId){
@@ -671,36 +645,28 @@ function abrirFormAtv(leadId){
   document.getElementById('fa-concluida').checked=false;
   const cfg2=gcfg();
   const meuNome2=cfg2.responsavel||'';
-  const users2=gu(); // lista global sincronizada
-  const selQ=document.getElementById('fa-prox-quem');
+  const users2=gu();
+  const selQ=document.getElementById('fa-quem');
   if(users2.length){
     selQ.innerHTML='<option value="">— Selecionar —</option>'+users2.map(u=>`<option value="${u}" ${u===meuNome2?'selected':''}>${u}</option>`).join('');
   } else {
-    selQ.innerHTML='<option value="">Salve seu nome em Configurações</option>';
-  }
-  document.getElementById('fa-prox-quando').value='';
-  document.getElementById('fa-prox-oque').value='';
-  abrirOv('ov-form-atv');
+    selQ.innerHTML  abrirOv('ov-form-atv');
 }
 function salvarAtividade(){
   const leadId=document.getElementById('fa-lead').value;
   const desc=document.getElementById('fa-desc').value.trim();
   if(!leadId){toast('⚠️ Selecione um lead');return}
-  if(!desc){toast('⚠️ Descreva o que foi feito');return}
-  const proxQuem   = document.getElementById('fa-prox-quem').value.trim();
-  const proxQuando = document.getElementById('fa-prox-quando').value;
-  const proxOque   = document.getElementById('fa-prox-oque').value.trim();
+  const oqfazer=document.getElementById('fa-oqfazer').value.trim();
+  if(!desc&&!oqfazer){toast('⚠️ Preencha pelo menos um campo descritivo');return}
   const atv=ga();
   atv.push({
     id: uid(), leadId,
     tipo:      document.getElementById('fa-tipo').value,
     data:      document.getElementById('fa-data').value,
+    quem:      document.getElementById('fa-quem').value,
+    oqfazer:   document.getElementById('fa-oqfazer').value.trim(),
     descricao: desc,
     concluida: document.getElementById('fa-concluida').checked,
-    prox_quem:    proxQuem||null,
-    prox_quando:  proxQuando||null,
-    prox_oque:    proxOque||null,
-    prox_concluida: false,
     criadoEm: new Date().toISOString(),
     atualEm:  new Date().toISOString()
   });
@@ -731,10 +697,10 @@ function renderAllAtv(){
         const lead=gl().find(l=>l.id===a.leadId);
         return`<div class="pendente-item" onclick="abrirDetalhe('${a.leadId}')">
           <div class="pi-top">
-            <span class="pi-quando"><i class="ti ti-calendar" style="font-size:12px"></i> ${fmtD(a.prox_quando)}</span>
+            <span class="pi-quando"><i class="ti ti-calendar" style="font-size:12px"></i> ${fmtD(a.data)}</span>
             <span class="pi-lead">${lead?lead.nome:'—'}</span>
           </div>
-          <div class="pi-oque">${a.prox_oque}</div>
+          <div class="pi-oque">${a.oqfazer||a.descricao||'—'}</div>
         </div>`;
       }).join('')}
     </div>`;
