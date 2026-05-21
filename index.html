@@ -408,11 +408,6 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
         <input class="fi" type="text" id="cfg-resp" placeholder="Seu nome (como aparece na lista)"/>
       </div>
       <div class="fg">
-        <label class="fl">Usuários do CRM</label>
-        <textarea class="ft" id="cfg-users" placeholder="Um nome por linha:&#10;João Silva&#10;Maria Santos&#10;Carlos Lima" style="min-height:100px"></textarea>
-        <div style="font-size:12px;color:var(--muted);margin-top:5px">Um nome por linha. Usado no campo &quot;Quem&quot; das próximas atividades.</div>
-      </div>
-      <div class="fg">
         <label class="fl">GitHub Token *</label>
         <input class="fi" type="password" id="cfg-token" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off"/>
         <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">
@@ -432,11 +427,13 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
 
 <script>
 /* ---- STORAGE ---- */
-const KL='natu_leads', KA='natu_atv', KC='natu_cfg', KS='natu_sync';
+const KL='natu_leads', KA='natu_atv', KC='natu_cfg', KS='natu_sync', KU='natu_users';
 const gl=()=>{try{return JSON.parse(localStorage.getItem(KL))||[]}catch{return[]}};
 const ga=()=>{try{return JSON.parse(localStorage.getItem(KA))||[]}catch{return[]}};
 const gcfg=()=>{try{return JSON.parse(localStorage.getItem(KC))||{}}catch{return{}}};
 const sl=v=>localStorage.setItem(KL,JSON.stringify(v));
+const gu=()=>{try{return JSON.parse(localStorage.getItem(KU))||[]}catch{return[]}};
+const su=v=>localStorage.setItem(KU,JSON.stringify(v));
 const sa=v=>localStorage.setItem(KA,JSON.stringify(v));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
@@ -650,11 +647,14 @@ function abrirFormAtv(leadId){
   document.getElementById('fa-desc').value='';
   document.getElementById('fa-concluida').checked=false;
   const cfg2=gcfg();
-  const users2=cfg2.users||[];
   const meuNome2=cfg2.responsavel||'';
+  const users2=gu(); // lista global sincronizada
   const selQ=document.getElementById('fa-prox-quem');
-  selQ.innerHTML='<option value="">— Selecionar —</option>'+users2.map(u=>`<option value="${u}" ${u===meuNome2?'selected':''}>${u}</option>`).join('');
-  if(!users2.length) selQ.innerHTML='<option value="">Configure usuários nas Configurações</option>';
+  if(users2.length){
+    selQ.innerHTML='<option value="">— Selecionar —</option>'+users2.map(u=>`<option value="${u}" ${u===meuNome2?'selected':''}>${u}</option>`).join('');
+  } else {
+    selQ.innerHTML='<option value="">Salve seu nome em Configurações</option>';
+  }
   document.getElementById('fa-prox-quando').value='';
   document.getElementById('fa-prox-oque').value='';
   abrirOv('ov-form-atv');
@@ -761,18 +761,22 @@ function abrirRelatorio(){
 }
 
 /* ---- CONFIG ---- */
-function preencherCfg(){const c=gcfg();document.getElementById('cfg-resp').value=c.responsavel||'';document.getElementById('cfg-token').value=c.token||'';document.getElementById('cfg-gist').value=c.gistId||'';document.getElementById('cfg-users').value=(c.users||[]).join('\n');}
+function preencherCfg(){const c=gcfg();document.getElementById('cfg-resp').value=c.responsavel||'';document.getElementById('cfg-token').value=c.token||'';document.getElementById('cfg-gist').value=c.gistId||'';}
 document.getElementById('btn-cfg').onclick=()=>{preencherCfg();abrirOv('ov-cfg')};
 function salvarCfg(){
-  const usersRaw=document.getElementById('cfg-users').value;
-  const users=usersRaw.split('\n').map(u=>u.trim()).filter(Boolean);
-  const cfg={responsavel:document.getElementById('cfg-resp').value.trim(),users,token:document.getElementById('cfg-token').value.trim(),gistId:document.getElementById('cfg-gist').value.trim()};
+  const meuNome=document.getElementById('cfg-resp').value.trim();
+  const cfg={responsavel:meuNome,token:document.getElementById('cfg-token').value.trim(),gistId:document.getElementById('cfg-gist').value.trim()};
   localStorage.setItem(KC,JSON.stringify(cfg));
-  fecharOv('ov-cfg'); toast('✅ Configurações salvas!');
+  // Adiciona este usuário na lista global sincronizada
+  if(meuNome){
+    const lista=gu();
+    if(!lista.includes(meuNome)){ lista.push(meuNome); lista.sort(); su(lista); }
+  }
+  fecharOv('ov-cfg'); toast('✅ Configurações salvas!'); autoSync();
 }
 function limparTudo(){
   if(!confirm('Apagar TODOS os dados locais?'))return;
-  [KL,KA,KS].forEach(k=>localStorage.removeItem(k));
+  [KL,KA,KS,KU].forEach(k=>localStorage.removeItem(k));
   fecharTudo(); resumo(); toast('🗑️ Dados removidos');
 }
 
@@ -789,7 +793,8 @@ async function sincronizar(){
   try{
     const payload={description:'NATUSOMOS CRM',public:false,files:{
       'natusomos_leads.json':{content:JSON.stringify(gl())},
-      'natusomos_atv.json':{content:JSON.stringify(ga())}
+      'natusomos_atv.json':{content:JSON.stringify(ga())},
+      'natusomos_users.json':{content:JSON.stringify(gu())}
     }};
     let gistId=cfg.gistId, resp;
     if(gistId){
@@ -799,10 +804,14 @@ async function sincronizar(){
           const gd=await gr.json();
           const rL=JSON.parse(gd.files?.['natusomos_leads.json']?.content||'[]');
           const rA=JSON.parse(gd.files?.['natusomos_atv.json']?.content||'[]');
+          const rU=JSON.parse(gd.files?.['natusomos_users.json']?.content||'[]');
           const mL=merge(gl(),rL),mA=merge(ga(),rA);
-          sl(mL); sa(mA);
+          // merge de usuários: une as duas listas sem duplicatas
+          const mU=[...new Set([...gu(),...rU])].sort();
+          sl(mL); sa(mA); su(mU);
           payload.files['natusomos_leads.json'].content=JSON.stringify(mL);
           payload.files['natusomos_atv.json'].content=JSON.stringify(mA);
+          payload.files['natusomos_users.json'].content=JSON.stringify(mU);
         }
       }catch{}
       resp=await fetch(`https://api.github.com/gists/${gistId}`,{method:'PATCH',headers:{'Authorization':'token '+cfg.token,'Content-Type':'application/json'},body:JSON.stringify(payload)});
