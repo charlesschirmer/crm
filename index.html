@@ -417,12 +417,35 @@ html,body{height:100%;font-family:'Helvetica Neue',Arial,sans-serif;background:v
       <div class="fg"><label class="fl">Gist ID (deixe em branco para criar)</label><input class="fi" type="text" id="cfg-gist" placeholder="Preenchido automaticamente"/></div>
       <button class="btn-p" onclick="salvarCfg()"><i class="ti ti-device-floppy"></i> Salvar</button>
       <button class="btn-s" onclick="sincronizar()"><i class="ti ti-refresh"></i> Sincronizar agora</button>
-      <button class="btn-d" onclick="limparTudo()"><i class="ti ti-trash"></i> Limpar dados locais</button>
+      <button class="btn-d" onclick="abrirZerar()"><i class="ti ti-database-x"></i> Zerar base de dados</button>
       <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:18px">NATUSOMOS CRM v2.0</div>
     </div>
   </div>
 </div>
 
+
+<!-- MODAL: ZERAR BASE -->
+<div class="ov" id="ov-zerar" onclick="fecharOv('ov-zerar',event)">
+  <div class="drawer">
+    <div class="dhandle"></div>
+    <div class="dhdr">
+      <span class="dhdr-title" style="color:#A32D2D"><i class="ti ti-database-x" style="font-size:18px;vertical-align:-3px;margin-right:6px"></i>Zerar base de dados</span>
+      <button class="dclose" onclick="fecharOv('ov-zerar')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="dbody">
+      <div style="background:#FCEBEB;border:1px solid #F7C1C1;border-radius:14px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:#A32D2D;line-height:1.6">
+        <b>Atenção:</b> Esta ação irá apagar <b>todos</b> os leads, atividades e usuários — local e no servidor. Esta ação não pode ser desfeita.
+      </div>
+      <div class="fg">
+        <label class="fl">Digite a senha para confirmar</label>
+        <input class="fi" type="password" id="zerar-senha" placeholder="••••••••••" autocomplete="off"/>
+      </div>
+      <button class="btn-d" onclick="confirmarZerar()" style="margin-top:4px">
+        <i class="ti ti-database-x"></i> Confirmar e zerar tudo
+      </button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -774,10 +797,38 @@ function salvarCfg(){
   }
   fecharOv('ov-cfg'); toast('✅ Configurações salvas!'); autoSync();
 }
-function limparTudo(){
-  if(!confirm('Apagar TODOS os dados locais?'))return;
+function abrirZerar(){
+  document.getElementById('zerar-senha').value='';
+  fecharOv('ov-cfg');
+  setTimeout(()=>abrirOv('ov-zerar'), 200);
+}
+
+async function confirmarZerar(){
+  const senha=document.getElementById('zerar-senha').value;
+  if(!senha){toast('⚠️ Digite a senha');return}
+  // Verificar hash SHA-256 sem expor a senha
+  const enc=new TextEncoder().encode(senha);
+  const buf=await crypto.subtle.digest('SHA-256',enc);
+  const hash=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  if(hash!=='ca14439cd55a2aea7073a398eae94ea57ab288147555715ac2234c6dc3a73b13'){toast('❌ Senha incorreta',3000);document.getElementById('zerar-senha').value='';return}
+  // Senha correta — zerar local
   [KL,KA,KS,KU].forEach(k=>localStorage.removeItem(k));
-  fecharTudo(); resumo(); toast('🗑️ Dados removidos');
+  // Zerar no Gist também
+  const cfg=gcfg();
+  if(cfg.token&&cfg.gistId){
+    try{
+      await fetch(`https://api.github.com/gists/${cfg.gistId}`,{
+        method:'PATCH',
+        headers:{'Authorization':'token '+cfg.token,'Content-Type':'application/json'},
+        body:JSON.stringify({description:'NATUSOMOS CRM',public:false,files:{
+          'natusomos_leads.json':{content:'[]'},
+          'natusomos_atv.json':{content:'[]'},
+          'natusomos_users.json':{content:'[]'}
+        }})
+      });
+    }catch{}
+  }
+  fecharTudo(); resumo(); toast('🗑️ Base zerada com sucesso!');
 }
 
 /* ---- SYNC ---- */
