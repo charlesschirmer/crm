@@ -683,10 +683,12 @@ function merge(local,remote){
   return Object.values(m);
 }
 let aTimer=null;
-function autoSync(){clearTimeout(aTimer);aTimer=setTimeout(()=>{const c=gcfg();if(c.token&&c.gistId)sincronizar()},3000)}
+function autoSync(){clearTimeout(aTimer);aTimer=setTimeout(()=>{const c=gcfg();if(c.token&&c.gistId)sincronizar()},1000)}
 
 /* ---- INIT ---- */
 resumo(); renderSync();
+// Sync automático ao abrir o app
+if(gcfg().token) sincronizar();
 </script>
 </body>
 </html>
